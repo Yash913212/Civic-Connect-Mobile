@@ -14,6 +14,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useAppStore, Complaint } from '../store';
 import { GlassCard } from '../components/GlassCard';
+import * as Haptics from 'expo-haptics';
+import Svg, { Path, Circle, Line, Defs, Stop, Text as SvgText, LinearGradient as SvgLinearGradient } from 'react-native-svg';
 
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -108,13 +110,113 @@ export default function AdminPortalScreen() {
   const router = useRouter();
   const complaints = useAppStore((s) => s.complaints);
   const updateComplaintStatus = useAppStore((s) => s.updateComplaintStatus);
+  const user = useAppStore((s) => s.user);
+  
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'assigned' | 'in_progress' | 'resolved'>('all');
-  const [activeTab, setActiveTab] = useState<'queue' | 'officers'>('queue');
+  const [activeTab, setActiveTab] = useState<'queue' | 'officers' | 'insights'>('queue');
   
   const [targetComp, setTargetComp] = useState<Complaint | null>(null);
   const [officerName, setOfficerName] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [isModalFocused, setIsModalFocused] = useState(false);
+
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [adminReplyText, setAdminReplyText] = useState('');
+  const [chats, setChats] = useState([
+    {
+      id: 'chat-1',
+      userName: 'Suresh Kumar',
+      issue: 'Pothole in Sector 4',
+      messages: [
+        { sender: 'user', text: 'Hi, there is a very deep pothole near the main crossing of Sector 4. It is causing traffic jams.', time: '10:30 AM' },
+        { sender: 'bot', text: 'I have logged this pothole complaint. It has been routed to the Roads Department.', time: '10:31 AM' },
+        { sender: 'user', text: 'Thanks. Can you tell me when someone will come to fix it?', time: '10:32 AM' }
+      ]
+    },
+    {
+      id: 'chat-2',
+      userName: 'Priya Sharma',
+      issue: 'Water Supply Outage',
+      messages: [
+        { sender: 'user', text: 'No water supply since morning in Sector 7. Is there a maintenance going on?', time: '10:15 AM' },
+        { sender: 'bot', text: 'Yes, water department reports pipeline maintenance in Sector 7 until 4 PM.', time: '10:16 AM' }
+      ]
+    },
+    {
+      id: 'chat-3',
+      userName: 'Anil Reddy',
+      issue: 'Streetlight Blown Out',
+      messages: [
+        { sender: 'user', text: 'The streetlight outside plot 45 is completely dead. It is very dark and unsafe.', time: '09:45 AM' },
+        { sender: 'bot', text: 'Logged under Electrical Department. Verification code: CIV-892.', time: '09:46 AM' }
+      ]
+    }
+  ]);
+
+  const handleSendAdminReply = () => {
+    if (adminReplyText.trim() && selectedChatId) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setChats(prev => prev.map(c => {
+        if (c.id === selectedChatId) {
+          return {
+            ...c,
+            messages: [
+              ...c.messages,
+              { sender: 'admin', text: adminReplyText.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+            ]
+          };
+        }
+        return c;
+      }));
+      setAdminReplyText('');
+    }
+  };
+
+  if (user?.role !== 'Admin' && user?.role !== 'Officer') {
+    return (
+      <View style={s.container}>
+        <LinearGradient
+          colors={['#05101E', '#091a35', '#030c18']}
+          style={StyleSheet.absoluteFill}
+        />
+        <GlowingOrb color={C.danger} startX={-60} startY={SH * 0.15} delay={0} />
+        <GlowingOrb color={C.blue} startX={SW - 180} startY={SH * 0.55} delay={1500} />
+        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <GlassCard
+            borderColor="rgba(239, 68, 68, 0.3)"
+            glowColor="rgba(239, 68, 68, 0.15)"
+            padding={30}
+            style={{ width: '100%', alignItems: 'center', gap: 20 }}
+          >
+            <Text style={{ fontSize: 50 }}>🔒</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: C.text, fontFamily: 'Sora_800ExtraBold', textAlign: 'center' }}>
+              Access Restricted
+            </Text>
+            <Text style={{ fontSize: 14, color: C.muted, fontFamily: 'Sora_400Regular', textAlign: 'center', lineHeight: 22 }}>
+              This control center is reserved for municipal administrators and dispatch officers. Citizens do not have access to dispatch operations.
+            </Text>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }}
+              style={{
+                backgroundColor: C.blue,
+                paddingHorizontal: 24,
+                paddingVertical: 14,
+                borderRadius: 12,
+                marginTop: 10,
+                width: '100%',
+                alignItems: 'center'
+              }}
+            >
+              <Text style={{ color: C.text, fontWeight: '700', fontFamily: 'Sora_700Bold' }}>Go Back</Text>
+            </Pressable>
+          </GlassCard>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
 
   const stats = {
@@ -227,10 +329,13 @@ export default function AdminPortalScreen() {
           {/* Tab Switcher */}
           <View style={s.tabContainer}>
             <Pressable onPress={() => setActiveTab('queue')} style={[s.tab, activeTab === 'queue' && s.tabActive]}>
-              <Text style={[s.tabText, activeTab === 'queue' && s.tabTextActive]}>Complaint Queue</Text>
+              <Text style={[s.tabText, activeTab === 'queue' && s.tabTextActive]}>Queue</Text>
             </Pressable>
             <Pressable onPress={() => setActiveTab('officers')} style={[s.tab, activeTab === 'officers' && s.tabActive]}>
-              <Text style={[s.tabText, activeTab === 'officers' && s.tabTextActive]}>Officer Dispatcher</Text>
+              <Text style={[s.tabText, activeTab === 'officers' && s.tabTextActive]}>Officers</Text>
+            </Pressable>
+            <Pressable onPress={() => setActiveTab('insights')} style={[s.tab, activeTab === 'insights' && s.tabActive]}>
+              <Text style={[s.tabText, activeTab === 'insights' && s.tabTextActive]}>Insights</Text>
             </Pressable>
           </View>
 
@@ -296,9 +401,8 @@ export default function AdminPortalScreen() {
                   ))
                 )}
               </View>
-
             </>
-          ) : (
+          ) : activeTab === 'officers' ? (
             /* Officers List Board */
             <View style={s.officersList}>
               {officers.map((o, index) => (
@@ -329,7 +433,238 @@ export default function AdminPortalScreen() {
                 </GlassCard>
               ))}
             </View>
+          ) : (
+            /* Insights and Chats Component */
+            <View style={s.insightsContainer}>
+              {/* Graphs Section */}
+              <Text style={s.sectionTitle}>📊 Data Analytics</Text>
+              
+              {/* Grid for two graph cards */}
+              <View style={{ gap: 16, marginBottom: 24 }}>
+                {/* Weekly Complaints Ingestion Trend (Line Chart) */}
+                <GlassCard
+                  borderColor="rgba(255,255,255,0.08)"
+                  glowColor="rgba(61,142,240,0.04)"
+                  padding={16}
+                  style={{ gap: 12 }}
+                >
+                  <Text style={s.graphTitle}>Weekly Ingestion Load</Text>
+                  <Text style={s.graphSubtitle}>Daily complaints trend (Mon - Sun)</Text>
+                  
+                  {/* Svg line chart */}
+                  <View style={{ height: 160, width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg height="150" width={SW - 80} viewBox={`0 0 ${SW - 80} 150`}>
+                      <Defs>
+                        <SvgLinearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                          <Stop offset="0" stopColor={C.blue} stopOpacity="0.4" />
+                          <Stop offset="1" stopColor={C.blue} stopOpacity="0.0" />
+                        </SvgLinearGradient>
+                      </Defs>
+                      
+                      {/* Grid Lines */}
+                      <Line x1="10" y1="20" x2={SW - 90} y2="20" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                      <Line x1="10" y1="60" x2={SW - 90} y2="60" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                      <Line x1="10" y1="100" x2={SW - 90} y2="100" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                      
+                      {/* Smooth Path Curve representing daily values */}
+                      <Path
+                        d={`M 30,120 Q 50,107 70,95 T 110,125 T 150,70 T 190,100 T 230,45 T 270,75`}
+                        fill="none"
+                        stroke={C.blue}
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                      />
+                      
+                      {/* Area Under Curve */}
+                      <Path
+                        d={`M 30,120 Q 50,107 70,95 T 110,125 T 150,70 T 190,100 T 230,45 T 270,75 L 270,140 L 30,140 Z`}
+                        fill="url(#grad)"
+                      />
 
+                      {/* Dots and Values */}
+                      <Circle cx="30" cy="120" r="4" fill={C.text} stroke={C.blue} strokeWidth="2" />
+                      <Circle cx="70" cy="95" r="4" fill={C.text} stroke={C.blue} strokeWidth="2" />
+                      <Circle cx="110" cy="125" r="4" fill={C.text} stroke={C.blue} strokeWidth="2" />
+                      <Circle cx="150" cy="70" r="4" fill={C.text} stroke={C.blue} strokeWidth="2" />
+                      <Circle cx="190" cy="100" r="4" fill={C.text} stroke={C.blue} strokeWidth="2" />
+                      <Circle cx="230" cy="45" r="4" fill={C.text} stroke={C.blue} strokeWidth="2" />
+                      <Circle cx="270" cy="75" r="4" fill={C.text} stroke={C.blue} strokeWidth="2" />
+
+                      {/* Labels */}
+                      <SvgText x="30" y="145" fill={C.muted} fontSize="9" textAnchor="middle" fontFamily="Sora_400Regular">M</SvgText>
+                      <SvgText x="70" y="145" fill={C.muted} fontSize="9" textAnchor="middle" fontFamily="Sora_400Regular">T</SvgText>
+                      <SvgText x="110" y="145" fill={C.muted} fontSize="9" textAnchor="middle" fontFamily="Sora_400Regular">W</SvgText>
+                      <SvgText x="150" y="145" fill={C.muted} fontSize="9" textAnchor="middle" fontFamily="Sora_400Regular">T</SvgText>
+                      <SvgText x="190" y="145" fill={C.muted} fontSize="9" textAnchor="middle" fontFamily="Sora_400Regular">F</SvgText>
+                      <SvgText x="230" y="145" fill={C.muted} fontSize="9" textAnchor="middle" fontFamily="Sora_400Regular">S</SvgText>
+                      <SvgText x="270" y="145" fill={C.muted} fontSize="9" textAnchor="middle" fontFamily="Sora_400Regular">S</SvgText>
+                    </Svg>
+                  </View>
+                </GlassCard>
+
+                {/* Users Count & Distribution Stacked Bar */}
+                <GlassCard
+                  borderColor="rgba(255,255,255,0.08)"
+                  glowColor="rgba(201,168,76,0.04)"
+                  padding={16}
+                  style={{ gap: 12 }}
+                >
+                  <Text style={s.graphTitle}>User Base Distribution</Text>
+                  <Text style={s.graphSubtitle}>Active user counts by category</Text>
+                  
+                  <View style={{ gap: 10, marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ color: C.text, fontSize: 12, fontFamily: 'Sora_600SemiBold' }}>Citizens (Users)</Text>
+                      <Text style={{ color: C.gold, fontSize: 12, fontFamily: 'Sora_700Bold' }}>1,248 (85%)</Text>
+                    </View>
+                    <View style={s.barBg}>
+                      <View style={[s.barFill, { width: '85%', backgroundColor: C.gold }]} />
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                      <Text style={{ color: C.text, fontSize: 12, fontFamily: 'Sora_600SemiBold' }}>Municipal Officers</Text>
+                      <Text style={{ color: C.blue, fontSize: 12, fontFamily: 'Sora_700Bold' }}>180 (12%)</Text>
+                    </View>
+                    <View style={s.barBg}>
+                      <View style={[s.barFill, { width: '12%', backgroundColor: C.blue }]} />
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                      <Text style={{ color: C.text, fontSize: 12, fontFamily: 'Sora_600SemiBold' }}>System Administrators</Text>
+                      <Text style={{ color: C.green, fontSize: 12, fontFamily: 'Sora_700Bold' }}>44 (3%)</Text>
+                    </View>
+                    <View style={s.barBg}>
+                      <View style={[s.barFill, { width: '3%', backgroundColor: C.green }]} />
+                    </View>
+                  </View>
+                </GlassCard>
+              </View>
+
+              {/* Citizen Chats Section */}
+              <Text style={s.sectionTitle}>💬 Live Citizen Support Chats</Text>
+              
+              {selectedChatId ? (
+                /* Chat view when selected */
+                <GlassCard
+                  borderColor="rgba(255,255,255,0.08)"
+                  glowColor="rgba(61,142,240,0.04)"
+                  padding={16}
+                  style={{ gap: 12 }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderColor: C.border, paddingBottom: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: C.text, fontSize: 14, fontWeight: '700', fontFamily: 'Sora_700Bold' }}>
+                        {chats.find(c => c.id === selectedChatId)?.userName}
+                      </Text>
+                      <Text style={{ color: C.gold, fontSize: 11, fontFamily: 'Sora_600SemiBold', marginTop: 2 }}>
+                        Issue: {chats.find(c => c.id === selectedChatId)?.issue}
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => setSelectedChatId(null)} style={{ paddingVertical: 6, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
+                      <Text style={{ color: C.muted, fontSize: 12, fontFamily: 'Sora_600SemiBold' }}>Close</Text>
+                    </Pressable>
+                  </View>
+
+                  <ScrollView style={{ height: 200 }} contentContainerStyle={{ gap: 8 }} showsVerticalScrollIndicator={false}>
+                    {chats.find(c => c.id === selectedChatId)?.messages.map((m, idx) => {
+                      const isAdmin = m.sender === 'admin';
+                      const isBot = m.sender === 'bot';
+                      return (
+                        <View key={idx} style={{ alignSelf: isAdmin ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                          <View
+                            style={{
+                              backgroundColor: isAdmin ? C.blue : isBot ? 'rgba(255,255,255,0.03)' : C.gold,
+                              padding: 10,
+                              borderRadius: 14,
+                              borderBottomRightRadius: isAdmin ? 2 : 14,
+                              borderBottomLeftRadius: !isAdmin && !isBot ? 2 : 14,
+                              borderWidth: isBot ? 1 : 0,
+                              borderColor: C.border
+                            }}
+                          >
+                            <Text style={{ color: isAdmin ? '#fff' : isBot ? C.text : C.navy, fontSize: 13, fontFamily: 'Sora_400Regular' }}>
+                              {m.text}
+                            </Text>
+                            <Text style={{ fontSize: 9, color: isAdmin ? 'rgba(255,255,255,0.6)' : isBot ? C.muted : 'rgba(5,16,30,0.5)', alignSelf: 'flex-end', marginTop: 4 }}>
+                              {m.time}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+
+                  <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 6 }}>
+                    <TextInput
+                      style={{
+                        flex: 1,
+                        backgroundColor: 'rgba(13,27,46,0.45)',
+                        borderWidth: 1,
+                        borderColor: C.border,
+                        borderRadius: 12,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        color: C.text,
+                        fontSize: 13,
+                        fontFamily: 'Sora_400Regular'
+                      }}
+                      placeholder="Type reply to citizen..."
+                      placeholderTextColor={C.muted}
+                      value={adminReplyText}
+                      onChangeText={setAdminReplyText}
+                      onSubmitEditing={handleSendAdminReply}
+                    />
+                    <Pressable
+                      onPress={handleSendAdminReply}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: C.blue,
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Text style={{ fontSize: 14, color: C.text }}>⚡</Text>
+                    </Pressable>
+                  </View>
+                </GlassCard>
+              ) : (
+                /* Chats List */
+                <View style={{ gap: 12 }}>
+                  {chats.map(chat => (
+                    <Pressable key={chat.id} onPress={() => setSelectedChatId(chat.id)}>
+                      <GlassCard
+                        borderColor="rgba(255,255,255,0.08)"
+                        glowColor="rgba(201,168,76,0.02)"
+                        padding={16}
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                      >
+                        <View style={{ flex: 1, gap: 4, marginRight: 12 }}>
+                          <Text style={{ color: C.text, fontSize: 14, fontWeight: '700', fontFamily: 'Sora_700Bold' }}>
+                            {chat.userName}
+                          </Text>
+                          <Text style={{ color: C.gold, fontSize: 11, fontFamily: 'Sora_600SemiBold' }} numberOfLines={1}>
+                            {chat.issue}
+                          </Text>
+                          <Text style={{ color: C.muted, fontSize: 11, fontFamily: 'Sora_400Regular', marginTop: 2 }} numberOfLines={1}>
+                            {chat.messages[chat.messages.length - 1]?.text}
+                          </Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                          <Text style={{ color: C.muted, fontSize: 10, fontFamily: 'Sora_400Regular' }}>
+                            {chat.messages[chat.messages.length - 1]?.time}
+                          </Text>
+                          <View style={{ backgroundColor: C.blue, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700', fontFamily: 'Sora_700Bold' }}>RESPOND</Text>
+                          </View>
+                        </View>
+                      </GlassCard>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
           )}
         </ScrollView>
 
@@ -524,5 +859,11 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4
   },
-  confirmBtnText: { color: C.navy, fontSize: 13, fontWeight: '700', fontFamily: 'Sora_700Bold' }
+  confirmBtnText: { color: C.navy, fontSize: 13, fontWeight: '700', fontFamily: 'Sora_700Bold' },
+  insightsContainer: { gap: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: C.text, fontFamily: 'Sora_800ExtraBold', marginTop: 12, marginBottom: 4 },
+  graphTitle: { fontSize: 14, fontWeight: '700', color: C.text, fontFamily: 'Sora_700Bold' },
+  graphSubtitle: { fontSize: 11, color: C.muted, fontFamily: 'Sora_400Regular' },
+  barBg: { height: 8, width: '100%', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 4 }
 });

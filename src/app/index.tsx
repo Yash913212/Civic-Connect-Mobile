@@ -404,29 +404,40 @@ export default function HomeScreen() {
             </View>
 
             {/* Operations Quick Access Tiles */}
-            <SectionHeader title="Quick Access Operations" />
-            <View style={styles.quickGrid}>
-              <QuickTile label="History" icon={<HistoryIcon />} onPress={() => router.push('/history')} delay={620} />
-              <QuickTile label="Command" icon={<CommandIcon />} active onPress={() => navigateToTab(1)} delay={690} />
-              <QuickTile label="Heatmap" icon={<HeatmapIcon />} onPress={() => router.push('/heatmap')} delay={760} />
-            </View>
+            {user?.role === 'Citizen' ? (
+              <>
+                <SectionHeader title="Quick Access Operations" />
+                <View style={styles.quickGrid}>
+                  <QuickTile label="History" icon={<HistoryIcon />} onPress={() => router.push('/history')} delay={620} />
+                  <QuickTile label="Heatmap" icon={<HeatmapIcon />} onPress={() => router.push('/heatmap')} delay={690} />
+                  <QuickTile label="AI Assistant" icon={<Text style={{ fontSize: 20 }}>🤖</Text>} onPress={() => router.push('/chat')} delay={760} />
+                </View>
+              </>
+            ) : (
+              <>
+                <SectionHeader title="Quick Access Operations" />
+                <View style={styles.quickGrid}>
+                  <QuickTile label="History" icon={<HistoryIcon />} onPress={() => router.push('/history')} delay={620} />
+                  <QuickTile label="Command" icon={<CommandIcon />} active onPress={() => navigateToTab(1)} delay={690} />
+                  <QuickTile label="Heatmap" icon={<HeatmapIcon />} onPress={() => router.push('/heatmap')} delay={760} />
+                </View>
 
-            {/* Premium AI Chatbot & Administration control additions */}
-            <SectionHeader title="AI & Administration" />
-            <View style={styles.quickGrid}>
-              <QuickTile label="AI Assistant" icon={<Text style={{ fontSize: 20 }}>🤖</Text>} onPress={() => router.push('/chat')} delay={830} />
-              {user?.role === 'Admin' && (
-                <QuickTile
-                  label="Admin Control"
-                  icon={<Text style={{ fontSize: 20 }}>⚡</Text>}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    router.push('/admin');
-                  }}
-                  delay={900}
-                />
-              )}
-            </View>
+                {/* Premium AI Chatbot & Administration control additions */}
+                <SectionHeader title="AI & Administration" />
+                <View style={styles.quickGrid}>
+                  <QuickTile label="AI Assistant" icon={<Text style={{ fontSize: 20 }}>🤖</Text>} onPress={() => router.push('/chat')} delay={830} />
+                  <QuickTile
+                    label="Admin Control"
+                    icon={<Text style={{ fontSize: 20 }}>⚡</Text>}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      router.push('/admin');
+                    }}
+                    delay={900}
+                  />
+                </View>
+              </>
+            )}
 
             <View style={{ height: 120 }} />
           </ScrollView>

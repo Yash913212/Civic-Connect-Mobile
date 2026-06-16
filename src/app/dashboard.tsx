@@ -107,6 +107,7 @@ function GlowingOrb({ color, startX, startY, delay }: { color: string; startX: n
 export default function DashboardScreen({ isTab = false }: { isTab?: boolean }) {
   const router = useRouter();
   const complaints = useAppStore((s) => s.complaints);
+  const user = useAppStore((s) => s.user);
 
   const stats = {
     total: complaints.length,
@@ -207,33 +208,55 @@ export default function DashboardScreen({ isTab = false }: { isTab?: boolean }) 
 
           {/* Department Load */}
           <Text style={s.sectionTitle}>🏛️ Department Load</Text>
-          <GlassCard
-            style={s.deptCard}
-            borderColor="rgba(255,255,255,0.08)"
-            delay={350}
-            padding={20}
-          >
-            <View style={s.deptRow}>
-              <Text style={s.deptName}>Roads Dept</Text>
-              <View style={s.barBg}><View style={[s.barFill, { width: '80%', backgroundColor: C.danger }]} /></View>
-              <Text style={s.deptVal}>80%</Text>
-            </View>
-            <View style={s.deptRow}>
-              <Text style={s.deptName}>Sanitation</Text>
-              <View style={s.barBg}><View style={[s.barFill, { width: '45%', backgroundColor: C.amber }]} /></View>
-              <Text style={s.deptVal}>45%</Text>
-            </View>
-            <View style={s.deptRow}>
-              <Text style={s.deptName}>Water & Power</Text>
-              <View style={s.barBg}><View style={[s.barFill, { width: '30%', backgroundColor: C.blue }]} /></View>
-              <Text style={s.deptVal}>30%</Text>
-            </View>
-            <View style={s.deptRow}>
-              <Text style={s.deptName}>Electrical</Text>
-              <View style={s.barBg}><View style={[s.barFill, { width: '20%', backgroundColor: C.green }]} /></View>
-              <Text style={s.deptVal}>20%</Text>
-            </View>
-          </GlassCard>
+          {user?.role === 'Citizen' ? (
+            <GlassCard
+              style={s.restrictedCard}
+              borderColor="rgba(239,68,68,0.22)"
+              glowColor="rgba(239,68,68,0.04)"
+              delay={350}
+              padding={20}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Text style={{ fontSize: 20 }}>🔒</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: C.text, fontSize: 13, fontFamily: 'Sora_600SemiBold' }}>
+                    Access Restricted
+                  </Text>
+                  <Text style={{ color: C.muted, fontSize: 11, fontFamily: 'Sora_400Regular', marginTop: 2 }}>
+                    Real-time workload monitoring is only available to department officers.
+                  </Text>
+                </View>
+              </View>
+            </GlassCard>
+          ) : (
+            <GlassCard
+              style={s.deptCard}
+              borderColor="rgba(255,255,255,0.08)"
+              delay={350}
+              padding={20}
+            >
+              <View style={s.deptRow}>
+                <Text style={s.deptName}>Roads Dept</Text>
+                <View style={s.barBg}><View style={[s.barFill, { width: '80%', backgroundColor: C.danger }]} /></View>
+                <Text style={s.deptVal}>80%</Text>
+              </View>
+              <View style={s.deptRow}>
+                <Text style={s.deptName}>Sanitation</Text>
+                <View style={s.barBg}><View style={[s.barFill, { width: '45%', backgroundColor: C.amber }]} /></View>
+                <Text style={s.deptVal}>45%</Text>
+              </View>
+              <View style={s.deptRow}>
+                <Text style={s.deptName}>Water & Power</Text>
+                <View style={s.barBg}><View style={[s.barFill, { width: '30%', backgroundColor: C.blue }]} /></View>
+                <Text style={s.deptVal}>30%</Text>
+              </View>
+              <View style={s.deptRow}>
+                <Text style={s.deptName}>Electrical</Text>
+                <View style={s.barBg}><View style={[s.barFill, { width: '20%', backgroundColor: C.green }]} /></View>
+                <Text style={s.deptVal}>20%</Text>
+              </View>
+            </GlassCard>
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -283,6 +306,13 @@ const s = StyleSheet.create({
     padding: 0,
     borderRadius: 20,
     backgroundColor: 'transparent',
+  },
+  restrictedCard: {
+    borderWidth: 0,
+    padding: 0,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    borderColor: 'rgba(239,68,68,0.15)',
   },
 
   deptRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

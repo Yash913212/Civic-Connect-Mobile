@@ -1,7 +1,7 @@
-# CivicAI 🏛️✨
+# Civic Connect 🏛️✨
 ### *Autonomous Multi-Modal Grievance Routing & Smart City Dispatch Engine*
 
-CivicAI is a premium, enterprise-grade mobile platform and AI-driven dispatcher that bridges the gap between citizens and municipal authorities. By fusing advanced computer vision, multilingual NLP, and real-time WebSockets, CivicAI automates intake, triggers AI routing to city departments, tracks live resolution status, and presents active analytics to both citizens and city admins.
+Civic Connect is a premium, enterprise-grade mobile platform and AI-driven dispatcher that bridges the gap between citizens and municipal authorities. By fusing advanced computer vision, multilingual NLP, and real-time WebSockets, Civic Connect automates intake, triggers AI routing to city departments, tracks live resolution status, and presents active analytics to both citizens and city admins.
 
 Inspired by premium dark UI aesthetics from **Linear, Apple, and Tesla**, the application utilizes a gorgeous **"Gold-Midnight" design system**, dynamic **ambient orbs** driven by React Native Reanimated, **Sora typography**, and high-fidelity **glassmorphic surfaces** to deliver a $50M+ tech-startup experience out of the box.
 
@@ -9,7 +9,7 @@ Inspired by premium dark UI aesthetics from **Linear, Apple, and Tesla**, the ap
 
 ## 🏛️ System Architecture
 
-CivicAI is built as a highly decoupled, real-time ecosystem consisting of a premium **Expo Mobile Client** and a robust **FastAPI AI Backend**.
+Civic Connect is built as a highly decoupled, real-time ecosystem consisting of a premium **Expo Mobile Client** and a robust **FastAPI AI Backend**.
 
 ```mermaid
 graph TD
@@ -53,18 +53,18 @@ graph TD
 
 ## 👥 User Roles: Citizen vs. Administrator
 
-CivicAI operates on a robust role separation architecture to facilitate distinct access permissions for normal citizens and municipal administrators:
+Civic Connect operates on a robust role separation architecture to facilitate distinct access permissions for normal citizens and municipal administrators:
 
 | Feature | 👤 Citizen (User) | 🏛️ Admin (Administrator / Officer) |
 | :--- | :---: | :---: |
 | **AI Grievance Ingestion** <br>*(Submit new reports with photos/text/voice)* | **Allowed** <br>*(Intakes with NLP + Multimodal Vision models)* | **Allowed** |
 | **Interactive Hotspot Heatmap** | **View-Only** <br>*(Track civic issue clusters in the city)* | **View-Only** |
 | **Personal Grievance Logs & History** | **Enabled** <br>*(View personal complaints & progress timelines)* | **Enabled** |
-| **CivicAI Chatbot Assistant** | **Enabled** <br>*(Ask about department routing, FAQ)* | **Enabled** |
+| **Civic Connect Chatbot Assistant** | **Enabled** <br>*(Ask about department routing, FAQ)* | **Enabled** |
 | **Municipal Dispatch Command Center** | 🚫 **Restricted** <br>*(Dynamic tile hidden on home dashboard)* | **Full Access** <br>*(Control Center at `/admin`)* |
 | **Interactive Queue Management** | 🚫 **Restricted** | **Enabled** <br>*(Inspect incoming issues & assign officers)* |
 | **Officer Assignment & Status Control** | 🚫 **Restricted** | **Enabled** <br>*(Manually transition status and set priority)* |
-| **Department Workload Monitoring** | 🚫 **Restricted** | **Enabled** <br>*(Real-time performance & dispatch meters)* |
+| **Department Workload Monitoring** | 🚫 **Restricted** <br>*(Overview tile showing restricted screen)* | **Enabled** <br>*(Real-time performance & dispatch meters)* |
 
 ---
 
@@ -73,8 +73,8 @@ CivicAI operates on a robust role separation architecture to facilitate distinct
 ### 1. 🔑 Integrated Dual-Role Authentication
 - Seamless **Citizen** vs. **Admin Portal** login.
 - Prefilled segmented test selector at the top of the authentication card container:
-  - **Citizen User:** Tap to pre-fill `user@civicai.com` and log in to file grievances, look up statuses, and chat with the AI assistant.
-  - **Admin Portal:** Tap to pre-fill `admin@civicai.com` and log in to inspect the municipal dispatch board, set priorities, and assign officers.
+  - **Citizen User:** Tap to pre-fill `user@civicconnect.com` and log in to file grievances, look up statuses, and chat with the AI assistant.
+  - **Admin Portal:** Tap to pre-fill `admin@civicconnect.com` and log in to inspect the municipal dispatch board, set priorities, and assign officers.
 - Integrated tactile haptic mechanical click responses.
 
 ### 2. 🎙️ Multi-Modal Grievance Intake
@@ -93,6 +93,10 @@ CivicAI operates on a robust role separation architecture to facilitate distinct
 - **Dispatch Board:** Live dashboard tracking active citizen complaints, AI routing, and workload loads.
 - **Action Modal:** Assign field officers (e.g. "Officer Yaswanth"), configure priority levels (*low*, *medium*, *high*, *critical*), and update the tracking status.
 - **Department Performance Indicators:** Clean workload status bars for civic departments (Sanitation, Power, Roads, Water).
+- **Interactive Insights & Analytics Dashboard:**
+  * **Weekly Ingestion Load Line Graph:** An SVG-rendered, premium glowing line chart showing daily complaints ingestion volume trends (Mon - Sun).
+  * **User Base Distribution:** Visual stacked bar graphs breaking down active counts of Citizens, Municipal Officers, and System Administrators.
+- **Live Support Chat Console**: Real-time communication portal allowing administrators to view active citizen conversations, read AI assistant transcripts, and directly reply with a dedicated keyboard HUD.
 
 ### 5. 🗺️ Radar Heatmap & GPS HUD Scanner
 - Dark geographic sector visualizer displaying complaint hotspots.
@@ -113,6 +117,7 @@ CivicAI operates on a robust role separation architecture to facilitate distinct
 - **Animations:** [React Native Reanimated](https://docs.swmansion.com/react-native-reanimated/) (Orb physics, breath cycles, custom slide transitions)
 - **Haptics:** `expo-haptics`
 - **Location:** `expo-location`
+- **Vector Graphics:** `react-native-svg` (custom line charts and data analytics)
 
 ### Backend AI Engine
 - **Framework:** FastAPI & Uvicorn (Asynchronous routing, real-time WebSocket connection manager)
@@ -143,7 +148,7 @@ Civic-Mobile/
 │   │   ├── notifications.tsx # Live push updates manager
 │   │   ├── profile.tsx    # Personal stats dashboard
 │   │   ├── settings.tsx   # Preference selectors and toggle controls
-│   │   ├── admin.tsx      # Admin Dispatch Mission Control Console
+│   │   ├── admin.tsx      # Admin Dispatch Mission Control Console (Insights, Queue, Officers)
 │   │   ├── heatmap.tsx    # Localized coordinates mapping HUD
 │   │   └── chat.tsx       # Conversational AI Assistant viewport
 │   ├── components/        # Standardized Visual Core Components
@@ -201,7 +206,7 @@ npx expo start -c
 ---
 
 ## 🎨 Design Philosophy & Theme Matrix
-The CivicAI layout adopts a sleek, visual command system designed to inspire authority, security, and high reliability:
+The Civic Connect layout adopts a sleek, visual command system designed to inspire authority, security, and high reliability:
 * **Background Gradient:** Midnight Navy (`#05101E` to `#030C18`) providing ultimate screen depth.
 * **Accents:** True premium gold (`#C9A84C`) active states representing standard high-class operations.
 * **Aura Glow:** Radial floating orbs generated on GPU threads via `react-native-reanimated` shared values to construct a responsive, alive digital workspace.
