@@ -16,10 +16,13 @@ export interface User {
 
 export interface Complaint {
   id: string;
+  title: string;
   imageUri: string | null;
   description: string;
   category: string;
   location: string;
+  latitude: number;
+  longitude: number;
   status: 'pending' | 'verified' | 'assigned' | 'in_progress' | 'inspection' | 'resolved' | 'closed';
   department: string;
   priority: 'low' | 'medium' | 'high' | 'critical';
@@ -43,6 +46,12 @@ interface AppState {
   hasSeenLaunch: boolean;
   setHasSeenLaunch: (v: boolean) => void;
 
+  // Loading
+  isLoading: boolean;
+  setLoading: (v: boolean) => void;
+  isFetching: boolean;
+  setFetching: (v: boolean) => void;
+
   // Mode Selection (Live Server vs Mock Mode)
   isLiveMode: boolean;
   setLiveMode: (v: boolean) => void;
@@ -52,14 +61,14 @@ interface AppState {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<boolean>;
-  signup: (name: string, email: string, mobile: string) => Promise<boolean>;
+  signup: (name: string, email: string, mobile: string, password: string) => Promise<boolean>;
   logout: () => void;
 
   // Complaints
   complaints: Complaint[];
   currentComplaint: Complaint | null;
   fetchComplaints: () => Promise<void>;
-  submitComplaint: (title: string, description: string, lat: number, lon: number, imagePath: string | null) => Promise<any>;
+  submitComplaint: (title: string, description: string, lat: number, lon: number, imagePath: string | null, category?: string) => Promise<any>;
   updateComplaintStatus: (id: string, status: string, officerName?: string, priority?: string) => Promise<void>;
   setCurrentComplaint: (c: Complaint | null) => void;
   addComplaint: (c: Complaint) => void;
@@ -92,10 +101,13 @@ export const useAppStore = create<AppState>((set, get) => {
           const fresh = payload.data;
           const mapped: Complaint = {
             id: `CIV-${fresh.id}`,
+            title: fresh.title,
             imageUri: null,
             description: fresh.title,
             category: fresh.category,
             location: `${fresh.latitude.toFixed(4)}, ${fresh.longitude.toFixed(4)}`,
+            latitude: fresh.latitude,
+            longitude: fresh.longitude,
             status: fresh.status,
             department: fresh.department,
             priority: fresh.priority.toLowerCase() as any,
@@ -163,6 +175,11 @@ export const useAppStore = create<AppState>((set, get) => {
     hasSeenLaunch: false,
     setHasSeenLaunch: (v) => set({ hasSeenLaunch: v }),
 
+    isLoading: false,
+    setLoading: (v) => set({ isLoading: v }),
+    isFetching: false,
+    setFetching: (v) => set({ isFetching: v }),
+
     isLiveMode: false, // Default is mock for maximum out-of-the-box reliability. Easily toggle to live server!
     setLiveMode: (v) => set({ isLiveMode: v }),
 
@@ -200,12 +217,12 @@ export const useAppStore = create<AppState>((set, get) => {
       return true;
     },
 
-    signup: async (name, email, mobile) => {
+    signup: async (name, email, mobile, password) => {
       const live = get().isLiveMode;
       if (live) {
         try {
-          await axios.post(`${API_URL}/auth/register`, { name, email, password: 'password', mobile, role: 'Citizen' });
-          const loginSuccess = await get().login(email, 'password');
+          await axios.post(`${API_URL}/auth/register`, { name, email, password, mobile, role: 'Citizen' });
+          const loginSuccess = await get().login(email, password);
           return loginSuccess;
         } catch (e) {
           console.log("Live signup failed, falling back to mock registration.");
@@ -229,10 +246,13 @@ export const useAppStore = create<AppState>((set, get) => {
     complaints: [
       {
         id: 'CIV-001',
+        title: 'Massive Pothole near Hitech City',
         imageUri: 'https://images.unsplash.com/photo-1515162305285-0293e4767cc2?q=80&w=500',
         description: 'road lo pedda gunta undi',
         category: 'Pothole',
         location: 'Kukatpally, Hyderabad',
+        latitude: 17.4483,
+        longitude: 78.3741,
         status: 'in_progress',
         department: 'Roads Department',
         priority: 'high',
@@ -244,10 +264,13 @@ export const useAppStore = create<AppState>((set, get) => {
       },
       {
         id: 'CIV-002',
+        title: 'Garbage overflowing on Street 4',
         imageUri: 'https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?q=80&w=500',
         description: 'Garbage not collected for 3 days',
         category: 'Garbage Overflow',
         location: 'Ameerpet, Hyderabad',
+        latitude: 17.4435,
+        longitude: 78.3820,
         status: 'assigned',
         department: 'Sanitation',
         priority: 'medium',
@@ -259,10 +282,13 @@ export const useAppStore = create<AppState>((set, get) => {
       },
       {
         id: 'CIV-003',
+        title: 'Street light not working since 1 week',
         imageUri: 'https://images.unsplash.com/photo-1509395062183-67c5ad6faff9?q=80&w=500',
         description: 'Street light not working since 1 week',
         category: 'Broken Streetlight',
         location: 'Madhapur, Hyderabad',
+        latitude: 17.4365,
+        longitude: 78.3910,
         status: 'resolved',
         department: 'Electricity',
         priority: 'low',
@@ -283,6 +309,7 @@ export const useAppStore = create<AppState>((set, get) => {
           });
           const mapped: Complaint[] = res.data.map((c: any) => ({
             id: `CIV-${c.id}`,
+            title: c.title || c.description,
             imageUri: c.image_url,
             description: c.description || c.title,
             category: c.category,
@@ -303,7 +330,7 @@ export const useAppStore = create<AppState>((set, get) => {
       }
     },
 
-    submitComplaint: async (title, description, lat, lon, imagePath) => {
+    submitComplaint: async (title, description, lat, lon, imagePath, category) => {
       const isLive = get().isLiveMode;
       
       if (isLive && get().token) {
@@ -341,12 +368,15 @@ export const useAppStore = create<AppState>((set, get) => {
       const mockId = `CIV-${Math.floor(100 + Math.random() * 900)}`;
       const categoriesList = ['Pothole', 'Garbage Overflow', 'Broken Streetlight', 'Water Leakage', 'Drainage Blockage'];
       
-      // Auto classify based on inputs
-      let category = 'Pothole';
-      if (description.toLowerCase().includes('light') || title.toLowerCase().includes('light')) category = 'Broken Streetlight';
-      else if (description.toLowerCase().includes('garbage') || description.toLowerCase().includes('kuppa')) category = 'Garbage Overflow';
-      else if (description.toLowerCase().includes('water') || description.toLowerCase().includes('leak')) category = 'Water Leakage';
-      else if (description.toLowerCase().includes('drain') || description.toLowerCase().includes('sewage')) category = 'Drainage Blockage';
+      // Auto classify based on inputs (use provided category or infer from text)
+      let cat = category;
+      if (!cat) {
+        cat = 'Pothole';
+        if (description.toLowerCase().includes('light') || title.toLowerCase().includes('light')) cat = 'Broken Streetlight';
+        else if (description.toLowerCase().includes('garbage') || description.toLowerCase().includes('kuppa')) cat = 'Garbage Overflow';
+        else if (description.toLowerCase().includes('water') || description.toLowerCase().includes('leak')) cat = 'Water Leakage';
+        else if (description.toLowerCase().includes('drain') || description.toLowerCase().includes('sewage')) cat = 'Drainage Blockage';
+      }
       
       const depts: any = {
         'Pothole': 'Roads Department',
@@ -358,16 +388,19 @@ export const useAppStore = create<AppState>((set, get) => {
       
       const newComp: Complaint = {
         id: mockId,
+        title,
         imageUri: imagePath || 'https://images.unsplash.com/photo-1599740831119-971f1b21f92e?q=80&w=500',
         description,
-        category,
+        category: cat,
         location: `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
+        latitude: lat,
+        longitude: lon,
         status: 'verified',
-        department: depts[category],
+        department: depts[cat],
         priority: 'high',
         confidence: 96.4,
         language: description.includes('lo') ? 'Telugu' : 'English',
-        municipalNote: `OFFICIAL MUNICIPAL WORK ORDER\n\nTO:\n${depts[category]}\n\nSUBJECT:\nUrgent Repair Request: ${category}\n\nA major local issue has been flagged via citizens. Prompt resolution is required.\n\nPriority: High`,
+        municipalNote: `OFFICIAL MUNICIPAL WORK ORDER\n\nTO:\n${depts[cat]}\n\nSUBJECT:\nUrgent Repair Request: ${cat}\n\nA major local issue has been flagged via citizens. Prompt resolution is required.\n\nPriority: High`,
         createdAt: new Date().toISOString()
       };
       
@@ -386,9 +419,9 @@ export const useAppStore = create<AppState>((set, get) => {
       }));
       
       return {
-        category,
+        category: cat,
         priority: 'High',
-        department: depts[category],
+        department: depts[cat],
         confidence: 96.4
       };
     },

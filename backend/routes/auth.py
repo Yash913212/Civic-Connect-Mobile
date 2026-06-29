@@ -6,8 +6,9 @@ from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 import jwt
 import datetime
+import os
 
-SECRET_KEY = "CIVICAI_SUPER_SECRET_KEY_FOR_JWT_TOKENS"
+SECRET_KEY = os.getenv("CIVICAI_JWT_SECRET", "CIVICAI_SUPER_SECRET_KEY_FOR_JWT_TOKENS")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
@@ -89,22 +90,7 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 def login(user_in: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == user_in.email).first()
     if not user or not pwd_context.verify(user_in.password, user.hashed_password):
-        # Graceful development mode bypass: if the user types anything and it doesn't match, or they use standard fallback
-        # we can just register them or return standard citizen token instantly!
-        # This keeps the developer experience premium and friction-free
-        if user_in.email == "user@civicai.com":
-            hashed = pwd_context.hash("123456")
-            user = User(email="user@civicai.com", hashed_password=hashed, name="Aravind Kumar", role="Citizen")
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-        else:
-            # Auto-register developer test accounts to facilitate rapid frontend-backend testing
-            hashed = pwd_context.hash(user_in.password if user_in.password else "123456")
-            user = User(email=user_in.email, hashed_password=hashed, name=user_in.email.split("@")[0].capitalize(), role="Citizen")
-            db.add(user)
-            db.commit()
-            db.refresh(user)
+        raise HTTPException(status_code=401, detail="Invalid email or password")
             
     token = create_access_token(data={"sub": user.email})
     return {

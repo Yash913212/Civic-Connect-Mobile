@@ -16,7 +16,7 @@ init_db()
 # Enable CORS for mobile and web connections
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:8081", "http://localhost:19006", "http://localhost:8000", "http://10.0.2.2:8081", "http://10.0.2.2:19006"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

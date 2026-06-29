@@ -17,6 +17,7 @@ interface GlassCardProps {
   borderColor?: string;
   glowColor?: string;
   padding?: number;
+  accessibilityLabel?: string;
 }
 
 
@@ -28,6 +29,7 @@ export function GlassCard({
   borderColor = 'rgba(255, 255, 255, 0.12)',
   glowColor,
   padding = 20,
+  accessibilityLabel,
 }: GlassCardProps) {
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(15);
@@ -50,6 +52,8 @@ export function GlassCard({
         style,
         animatedStyle,
       ]}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityLabel ? 'text' : undefined}
     >
       {glowColor && (
         <View style={[styles.glow, { backgroundColor: glowColor }]} pointerEvents="none" />

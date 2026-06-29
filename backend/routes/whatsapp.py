@@ -7,7 +7,6 @@ from ai.fusion import fusion
 from ai.generator import note_generator
 from routes.complaints import broadcast_update
 import random
-import requests
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 

@@ -25,14 +25,15 @@ def get_db():
 active_ws_connections = []
 
 async def broadcast_update(message: dict):
-    # Attempt to broadcast state change to all listening sockets
+    dead = []
     for connection in active_ws_connections:
         try:
             await connection.send_json(message)
         except Exception:
-            # Clean up dead sockets
-            if connection in active_ws_connections:
-                active_ws_connections.remove(connection)
+            dead.append(connection)
+    for d in dead:
+        if d in active_ws_connections:
+            active_ws_connections.remove(d)
 
 @router.post("/create")
 async def create_complaint(

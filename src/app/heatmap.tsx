@@ -1,275 +1,171 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Pressable, ScrollView, Dimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withDelay,
-  withRepeat,
-  withSequence,
-  Easing,
-} from 'react-native-reanimated';
+import React, { useState, useRef, useCallback } from 'react';
+import { StyleSheet, View, Text, Pressable, ScrollView } from 'react-native';
+import { WebView } from 'react-native-webview';
+import * as Haptics from 'expo-haptics';
 import { useAppStore } from '../store';
-import { GlassCard } from '../components/GlassCard';
+import { BackButton } from '../components/BackButton';
+import { ScreenLayout } from '../components/ScreenLayout';
+import { colors } from '../theme/colors';
 
+const MAP_HTML = `<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1b2e; overflow: hidden; }
+    #map { width: 100vw; height: 100vh; background: #0d1b2e; }
+    .leaflet-control-zoom a { background: rgba(13,27,46,0.9) !important; color: #c9a84c !important; border-color: rgba(255,255,255,0.06) !important; }
+    .custom-marker { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); box-shadow: 0 0 12px rgba(0,0,0,0.5); }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    const map = L.map('map', { zoomControl: true, attributionControl: false }).setView([17.4483, 78.3741], 12);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
-const { width: SW, height: SH } = Dimensions.get('window');
+    const colorMap = { critical: '#ef4444', high: '#ef4444', medium: '#f5a623', low: '#2ecc8f', default: '#6b7280' };
+    let markers = [];
 
-const C = {
-  navy:       '#05101E',
-  surface:    '#0D1B2E',
-  elevated:   '#112236',
-  gold:       '#C9A84C',
-  goldDim:    'rgba(201,168,76,0.12)',
-  goldBorder: 'rgba(201,168,76,0.25)',
-  amber:      '#F5A623',
-  green:      '#2ECC8F',
-  blue:       '#3D8EF0',
-  danger:     '#EF4444',
-  text:       '#FFFFFF',
-  muted:      'rgba(255,255,255,0.40)',
-  border:     'rgba(255,255,255,0.06)',
-} as const;
+    function buildMarkers(data) {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+      const bounds = [];
+      data.forEach(p => {
+        const color = colorMap[p.priority] || colorMap.default;
+        const icon = L.divIcon({ className: '', html: '<div class="custom-marker" style="background:' + color + ';box-shadow:0 0 12px ' + color + '88;"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
+        const m = L.marker([p.lat, p.lng], { icon }).addTo(map);
+        m.bindPopup('<b style="color:#c9a84c">' + p.category + '</b><br/><span style="color:#94a3b8">' + p.title.substring(0, 60) + '</span>');
+        markers.push(m);
+        bounds.push([p.lat, p.lng]);
+      });
+      if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    }
 
-function GlowingOrb({ color, startX, startY, delay }: { color: string; startX: number; startY: number; delay: number }) {
-  const scale = useSharedValue(1);
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-
-  useEffect(() => {
-    scale.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(1.15, { duration: 4000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.85, { duration: 4000, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        true
-      )
-    );
-
-    translateX.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(30, { duration: 6000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(-30, { duration: 6000, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        true
-      )
-    );
-
-    translateY.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(-40, { duration: 8000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(40, { duration: 8000, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        true
-      )
-    );
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
-  }));
-
-  return (
-    <Animated.View
-      style={[
-        {
-          position: 'absolute',
-          width: 250,
-          height: 250,
-          borderRadius: 125,
-          backgroundColor: color,
-          opacity: 0.08,
-          left: startX,
-          top: startY,
-        },
-        style,
-      ]}
-    />
-  );
-}
+    window.addEventListener('message', (e) => {
+      try { buildMarkers(JSON.parse(e.data)); } catch (err) {}
+    });
+  </script>
+</body>
+</html>`;
 
 export default function HeatmapScreen() {
-  const router = useRouter();
   const complaints = useAppStore((s) => s.complaints);
   const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
+  const webRef = useRef<WebView>(null);
 
-  // Filter complaints having lat/lon coordinates
-  const markers = complaints.map((c) => {
-    const coords = c.location.split(',');
-    return {
-      id: c.id,
-      latitude: parseFloat(coords[0]) || 17.4483,
-      longitude: parseFloat(coords[1]) || 78.3741,
-      category: c.category,
-      priority: c.priority,
-      title: c.description
-    };
-  });
+  const markers = complaints.map((c) => ({
+    id: c.id,
+    latitude: c.latitude || 17.4483,
+    longitude: c.longitude || 78.3741,
+    category: c.category,
+    priority: c.priority,
+    title: c.description,
+  }));
 
-  const uniqueCategories = Array.from(new Set(markers.map(m => m.category)));
-  const filteredMarkers = selectedIssue ? markers.filter(m => m.category === selectedIssue) : markers;
+  const uniqueCategories = Array.from(new Set(markers.map((m) => m.category)));
+  const filteredMarkers = selectedIssue ? markers.filter((m) => m.category === selectedIssue) : markers;
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critical':
-      case 'high': return C.danger;
-      case 'medium': return C.amber;
-      default: return C.green;
-    }
-  };
+  const sendMarkers = useCallback(() => {
+    const payload = filteredMarkers.map((m) => ({
+      lat: m.latitude,
+      lng: m.longitude,
+      priority: m.priority,
+      category: m.category,
+      title: m.title,
+    }));
+    webRef.current?.postMessage(JSON.stringify(payload));
+  }, [filteredMarkers]);
 
   return (
-    <View style={s.container}>
-      <LinearGradient
-        colors={['#05101E', '#091a35', '#030c18']}
-        style={StyleSheet.absoluteFill}
-      />
-      <GlowingOrb color={C.gold} startX={-60} startY={SH * 0.15} delay={0} />
-      <GlowingOrb color={C.blue} startX={SW - 180} startY={SH * 0.55} delay={1500} />
-
-      <SafeAreaView style={{ flex: 1 }}>
-        {/* Header */}
-        <View style={s.header}>
-          <Pressable onPress={() => router.back()} style={s.backBtn}>
-            <Text style={{ fontSize: 20, color: C.text, fontFamily: 'Sora_700Bold' }}>←</Text>
-          </Pressable>
-          <View>
-            <Text style={s.title}>CITY HOTSPOTS</Text>
-            <Text style={s.subtitle}>Interactive Grievance Heatmap</Text>
-          </View>
-          <Text style={{ fontSize: 24, color: C.gold }}>🗺️</Text>
+    <ScreenLayout edges={['top', 'left', 'right']}>
+      <View style={s.header}>
+        <BackButton />
+        <View>
+          <Text style={s.title}>CITY HOTSPOTS</Text>
+          <Text style={s.subtitle}>Interactive Grievance Heatmap</Text>
         </View>
+        <Text style={{ fontSize: 24, color: colors.gold }}>🗺️</Text>
+      </View>
 
-        {/* Map Area */}
-        <View style={s.mapContainer}>
-          <View style={s.mockMap}>
-            {/* Ambient Background Grid representing geographic sectors */}
-            <View style={s.gridLineH} />
-            <View style={[s.gridLineH, { top: '50%' }]} />
-            <View style={[s.gridLineH, { top: '75%' }]} />
-            <View style={s.gridLineV} />
-            <View style={[s.gridLineV, { left: '50%' }]} />
-            <View style={[s.gridLineV, { left: '75%' }]} />
+      <View style={s.mapContainer}>
+        <WebView
+          ref={webRef}
+          source={{ html: MAP_HTML }}
+          style={s.webview}
+          scrollEnabled={false}
+          overScrollMode="never"
+          onLoad={sendMarkers}
+          javaScriptEnabled
+          domStorageEnabled
+          originWhitelist={['*']}
+        />
+      </View>
 
-            {/* Render interactive dynamic visual mapping hotspots */}
-            {filteredMarkers.map((m, idx) => {
-              // Convert lat/lon offset to mock positioning coordinates inside container
-              const leftPct = 15 + ((m.longitude - 78.35) * 1200) % 70;
-              const topPct = 15 + ((m.latitude - 17.42) * 1200) % 70;
-
-              return (
-                <View key={m.id} style={[s.markerWrapper, { left: `${leftPct}%`, top: `${topPct}%` }]}>
-                  {/* Glowing Pulse Radar representation */}
-                  <View style={[s.pulseRadar, { backgroundColor: getPriorityColor(m.priority) }]} />
-                  <Pressable style={[s.markerPin, { backgroundColor: getPriorityColor(m.priority) }]}>
-                    <Text style={s.pinTxt}>{m.category[0]}</Text>
-                  </Pressable>
-                </View>
-              );
-            })}
-
-            {/* Map Overlay HUD controls */}
-            <GlassCard
-              style={s.hudCard}
-              borderColor="rgba(255,255,255,0.08)"
-              glowColor="rgba(201,168,76,0.04)"
-              delay={200}
-              padding={16}
+      <View style={s.bottomPanel}>
+        <Text style={s.panelTitle}>Categories</Text>
+        <View style={{ height: 44, marginTop: 8 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scroller}>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setSelectedIssue(null);
+              }}
+              style={[s.catChip, !selectedIssue && s.catChipActive]}
+              accessibilityLabel="Show all categories"
             >
-              <Text style={s.hudTitle}>📍 GIGA-SECTOR SCANNER</Text>
-              <Text style={s.hudDesc}>GPS Auto-clustering overlays enabled.</Text>
-            </GlassCard>
-
-          </View>
-        </View>
-
-        {/* Categories filters board */}
-        <View style={s.bottomPanel}>
-          <Text style={s.panelTitle}>Ingestion Categories</Text>
-          <View style={{ height: 44, marginTop: 8 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scroller}>
-              <Pressable onPress={() => setSelectedIssue(null)} style={[s.catChip, !selectedIssue && s.catChipActive]}>
-                <Text style={[s.catText, !selectedIssue && s.catTextActive]}>ALL HOTSPOTS</Text>
+              <Text style={[s.catText, !selectedIssue && s.catTextActive]}>ALL</Text>
+            </Pressable>
+            {uniqueCategories.map((cat) => (
+              <Pressable
+                key={cat}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedIssue(cat);
+                }}
+                style={[s.catChip, selectedIssue === cat && s.catChipActive]}
+                accessibilityLabel={`Filter by ${cat}`}
+              >
+                <Text style={[s.catText, selectedIssue === cat && s.catTextActive]}>{cat.toUpperCase()}</Text>
               </Pressable>
-              {uniqueCategories.map((cat) => (
-                <Pressable key={cat} onPress={() => setSelectedIssue(cat)} style={[s.catChip, selectedIssue === cat && s.catChipActive]}>
-                  <Text style={[s.catText, selectedIssue === cat && s.catTextActive]}>{cat.toUpperCase()}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
+            ))}
+          </ScrollView>
         </View>
-      </SafeAreaView>
-    </View>
+      </View>
+    </ScreenLayout>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'transparent' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderColor: C.border },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(13,27,46,0.8)',
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: C.border
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
-  title: { fontSize: 16, fontWeight: '800', color: C.text, letterSpacing: 1.5, fontFamily: 'Sora_800ExtraBold' },
-  subtitle: { fontSize: 11, color: C.gold, textTransform: 'uppercase', marginTop: 2, fontFamily: 'Sora_600SemiBold', letterSpacing: 0.5 },
-  mapContainer: { flex: 1, backgroundColor: 'rgba(13,27,46,0.5)', overflow: 'hidden', borderWidth: 1, borderColor: C.border, margin: 20, borderRadius: 24 },
-  mockMap: { flex: 1, position: 'relative' },
-  gridLineH: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.03)', top: '25%' },
-  gridLineV: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255,255,255,0.03)', left: '25%' },
-  markerWrapper: { position: 'absolute', width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  pulseRadar: { position: 'absolute', width: 34, height: 34, borderRadius: 17, opacity: 0.25, transform: [{ scale: 1.5 }] },
-  markerPin: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 8, borderWidth: 1, borderColor: C.border },
-  pinTxt: { fontSize: 11, fontWeight: '800', color: '#fff', fontFamily: 'Sora_800ExtraBold' },
-  hudCard: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    borderWidth: 0,
-    padding: 0,
-    borderRadius: 16,
-    backgroundColor: 'transparent'
-  },
-  hudTitle: { fontSize: 12, fontWeight: '800', color: C.text, letterSpacing: 1, fontFamily: 'Sora_700Bold' },
-  hudDesc: { fontSize: 11, color: C.muted, marginTop: 4, fontFamily: 'Sora_400Regular' },
-
-  bottomPanel: { padding: 20, borderTopWidth: 1, borderColor: C.border },
-  panelTitle: { fontSize: 13, fontWeight: '700', color: C.text, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Sora_700Bold' },
+  title: { fontSize: 16, fontWeight: '800', color: colors.text, letterSpacing: 1.5, fontFamily: 'Sora_800ExtraBold' },
+  subtitle: { fontSize: 11, color: colors.gold, textTransform: 'uppercase', marginTop: 2, fontFamily: 'Sora_600SemiBold', letterSpacing: 0.5 },
+  mapContainer: { flex: 1, overflow: 'hidden', margin: 20, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  webview: { flex: 1, backgroundColor: '#0d1b2e', borderRadius: 24 },
+  bottomPanel: { padding: 20, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  panelTitle: { fontSize: 13, fontWeight: '700', color: colors.text, textTransform: 'uppercase', letterSpacing: 1, fontFamily: 'Sora_700Bold' },
   scroller: { gap: 8 },
   catChip: {
     paddingHorizontal: 16,
     borderRadius: 14,
     backgroundColor: 'rgba(13,27,46,0.45)',
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: 'rgba(255,255,255,0.06)',
     justifyContent: 'center',
-    height: 38
+    height: 38,
   },
-  catChipActive: { backgroundColor: C.gold, borderColor: C.gold },
-
-  catText: { fontSize: 11, fontWeight: '700', color: C.muted, fontFamily: 'Sora_600SemiBold' },
-  catTextActive: { color: C.navy, fontFamily: 'Sora_700Bold' }
+  catChipActive: { backgroundColor: colors.gold, borderColor: colors.gold },
+  catText: { fontSize: 11, fontWeight: '700', color: colors.muted, fontFamily: 'Sora_600SemiBold' },
+  catTextActive: { color: colors.navy, fontFamily: 'Sora_700Bold' },
 });

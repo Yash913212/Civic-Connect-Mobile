@@ -7,6 +7,7 @@ import {
   ScrollView,
   Pressable,
   Alert,
+  ActivityIndicator,
   Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -14,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -28,6 +30,7 @@ import Animated, {
 import { useAppStore } from '../store';
 import { GlassCard } from '../components/GlassCard';
 import { WebView } from 'react-native-webview';
+import { GOOGLE_MAPS_API_KEY } from '../env';
 
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -139,13 +142,17 @@ function Section({
 
 export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
   const router = useRouter();
-  const addComplaint = useAppStore((s) => s.addComplaint);
+  const submitComplaint = useAppStore((s) => s.submitComplaint);
+  const isLoading = useAppStore((s) => s.isLoading);
+  const setLoading = useAppStore((s) => s.setLoading);
 
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [location, setLocation] = useState('Detecting location...');
+  const [errors, setErrors] = useState<{ description?: string; category?: string }>({});
+  const [coords, setCoords] = useState<{ lat: number; lon: number }>({ lat: 0, lon: 0 });
 
   const submitScale = useSharedValue(1);
   const submitBtnStyle = useAnimatedStyle(() => ({
@@ -153,8 +160,16 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
   }));
 
   useEffect(() => {
-    const t = setTimeout(() => setLocation('Kukatpally, Hyderabad'), 2000);
-    return () => clearTimeout(t);
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocation('Kukatpally, Hyderabad');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({});
+      setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+      setLocation(`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+    })();
   }, []);
 
   const pickImage = async (source: 'camera' | 'gallery') => {
@@ -193,32 +208,18 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
     }
   };
 
-  const handleSubmit = () => {
-    if (!description.trim()) {
-      Alert.alert('Required', 'Please describe the issue.');
-      return;
-    }
-    if (!selectedCategory) {
-      Alert.alert('Required', 'Please select an issue category.');
-      return;
-    }
+  const handleSubmit = async () => {
+    const newErrors: { description?: string; category?: string } = {};
+    if (!description.trim()) newErrors.description = 'Please describe the issue';
+    if (!selectedCategory) newErrors.category = 'Please select an issue category';
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const complaint = {
-      id: `CIV-${String(Date.now()).slice(-4)}`,
-      imageUri,
-      description: description.trim(),
-      category: CATEGORIES.find((c) => c.id === selectedCategory)?.label || 'Other',
-      location,
-      status: 'pending' as const,
-      department: '',
-      priority: 'medium' as const,
-      confidence: 0,
-      language: '',
-      municipalNote: '',
-      createdAt: new Date().toISOString(),
-    };
-    addComplaint(complaint);
+    const category = CATEGORIES.find((c) => c.id === selectedCategory)?.label || 'Other';
+    setLoading(true);
+    await submitComplaint(category, description.trim(), coords.lat, coords.lon, imageUri, category);
+    setLoading(false);
     router.push('/processing');
   };
 
@@ -308,11 +309,12 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
-                value={description}
-                onChangeText={setDescription}
+                  value={description}
+                  onChangeText={(t) => { setDescription(t); setErrors((e) => ({ ...e, description: undefined })); }}
               />
               <Text style={styles.charCount}>{description.length}/500</Text>
             </View>
+            {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
           </Section>
 
           {/* ── Voice Input ── */}
@@ -350,7 +352,7 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
               </View>
               <View style={styles.locationMapPlaceholder}>
                 <WebView 
-                  source={{ uri: 'https://www.google.com/maps/embed/v1/place?key=AIzaSyAMpqpYd02zWHmD9TZW9TdiJVTmusIQFRs&q=Space+Needle,Seattle+WA' }} 
+                  source={{ uri: `https://www.google.com/maps/embed/v1/place?key=${GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(location)}` }} 
                   style={{ flex: 1, backgroundColor: 'transparent' }} 
                   scrollEnabled={false}
                   pointerEvents="none"
@@ -377,6 +379,7 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setSelectedCategory(cat.id);
+                      setErrors((e) => ({ ...e, category: undefined }));
                     }}
                   >
                     <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
@@ -392,6 +395,7 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
                 );
               })}
             </View>
+            {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
           </Section>
 
           {/* ── Submit ── */}
@@ -405,9 +409,14 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
                 submitScale.value = withSpring(1);
               }}
               onPress={handleSubmit}
+              disabled={isLoading}
             >
-              <Text style={styles.submitIcon}>🚀</Text>
-              <Text style={styles.submitText}>Submit Complaint</Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#05101E" />
+              ) : (
+                <Text style={styles.submitIcon}>🚀</Text>
+              )}
+              <Text style={styles.submitText}>{isLoading ? 'Processing...' : 'Submit Complaint'}</Text>
             </Pressable>
           </Animated.View>
 
@@ -639,6 +648,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  errorText: { fontSize: 12, color: C.danger, marginTop: 6, fontFamily: 'Sora_400Regular' },
   submitIcon: { fontSize: 18 },
   submitText: {
     fontSize: 16,

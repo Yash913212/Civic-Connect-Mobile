@@ -1,5 +1,13 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { View, ActivityIndicator } from 'react-native';
+import {
+  useFonts,
+  Sora_400Regular,
+  Sora_600SemiBold,
+  Sora_700Bold,
+  Sora_800ExtraBold,
+} from '@expo-google-fonts/sora';
 import LaunchScreen from '../components/LaunchScreen';
 import { useAppStore } from '../store';
 import { SmartCityBackground } from '../components/SmartCityBackground';
@@ -7,8 +15,22 @@ import { SmartCityBackground } from '../components/SmartCityBackground';
 export default function RootLayout() {
   const hasSeenLaunch = useAppStore((s) => s.hasSeenLaunch);
   const user = useAppStore((s) => s.user);
-  
+  const [fontsLoaded] = useFonts({
+    Sora_400Regular,
+    Sora_600SemiBold,
+    Sora_700Bold,
+    Sora_800ExtraBold,
+  });
+
   const mode = user?.role?.toLowerCase() === 'admin' ? 'admin' : user?.role?.toLowerCase() === 'officer' ? 'officer' : 'home';
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#05101E', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#C9A84C" />
+      </View>
+    );
+  }
 
   return (
     <>
