@@ -1,9 +1,10 @@
 export const typography = {
   fonts: {
-    regular: 'System',
-    medium: 'System',
-    bold: 'System',
-    heavy: 'System',
+    regular: 'Sora_400Regular',
+    medium: 'Sora_500Medium',
+    semiBold: 'Sora_600SemiBold',
+    bold: 'Sora_700Bold',
+    extraBold: 'Sora_800ExtraBold',
   },
   sizes: {
     xs: 12,

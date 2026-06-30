@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, Modal, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, Modal, Dimensions, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAppStore, Complaint } from '../store';
 import { GlassCard } from '../components/GlassCard';
+import { AnimatedCounter } from '../components/AnimatedCounter';
 import { BackButton } from '../components/BackButton';
 import { ScreenLayout } from '../components/ScreenLayout';
 import { colors } from '../theme/colors';
 import Svg, { Path, Circle, Line, Defs, Stop, Text as SvgText, LinearGradient as SvgLinearGradient } from 'react-native-svg';
+import { generateInsights, generateOfficerResponse } from '../services/ai';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -27,6 +29,9 @@ export default function AdminPortalScreen() {
 
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [adminReplyText, setAdminReplyText] = useState('');
+  const [aiInsights, setAiInsights] = useState<{ summary: string; trends: string; recommendations: string[] } | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [generatingReply, setGeneratingReply] = useState(false);
   const [chats, setChats] = useState([
     {
       id: 'chat-1',
@@ -77,6 +82,21 @@ export default function AdminPortalScreen() {
       );
       setAdminReplyText('');
     }
+  };
+
+  const handleAiSuggestReply = async () => {
+    const chat = chats.find((c) => c.id === selectedChatId);
+    if (!chat) return;
+    setGeneratingReply(true);
+    const lastUserMsg = [...chat.messages].reverse().find((m) => m.sender === 'user');
+    const matchingComplaint = complaints.find(
+      (c) => c.title.toLowerCase().includes(chat.issue.toLowerCase()) || chat.issue.toLowerCase().includes(c.title.toLowerCase())
+    );
+    const reply = await generateOfficerResponse(
+      matchingComplaint || { title: chat.issue, description: lastUserMsg?.text || chat.issue, category: 'General', department: 'Municipal', priority: 'medium', id: '', imageUri: null, location: '', latitude: 0, longitude: 0, status: 'pending', confidence: 0, language: 'English', municipalNote: '', createdAt: '', officerName: '' }
+    );
+    setAdminReplyText(reply);
+    setGeneratingReply(false);
   };
 
   if (user?.role !== 'Admin' && user?.role !== 'Officer') {
@@ -177,19 +197,19 @@ export default function AdminPortalScreen() {
         <View style={s.metricsRow}>
           <GlassCard style={s.metricCard} borderColor="rgba(255,255,255,0.08)" delay={50} padding={16}>
             <Text style={s.metricLabel}>Total Grievances</Text>
-            <Text style={s.metricVal}>{stats.total}</Text>
+            <AnimatedCounter value={stats.total} delay={150} duration={1000} style={s.metricVal} />
           </GlassCard>
           <GlassCard style={s.metricCard} borderColor="rgba(245, 166, 35, 0.25)" glowColor="rgba(245, 166, 35, 0.08)" delay={100} padding={16}>
             <Text style={[s.metricLabel, { color: colors.amber }]}>Active Cases</Text>
-            <Text style={s.metricVal}>{stats.active}</Text>
+            <AnimatedCounter value={stats.active} delay={250} duration={1000} style={[s.metricVal, { color: colors.amber }]} />
           </GlassCard>
           <GlassCard style={s.metricCard} borderColor="rgba(46, 204, 143, 0.25)" glowColor="rgba(46, 204, 143, 0.08)" delay={150} padding={16}>
             <Text style={[s.metricLabel, { color: colors.green }]}>Resolved</Text>
-            <Text style={s.metricVal}>{stats.resolved}</Text>
+            <AnimatedCounter value={stats.resolved} delay={350} duration={1000} style={[s.metricVal, { color: colors.green }]} />
           </GlassCard>
           <GlassCard style={s.metricCard} borderColor="rgba(239, 68, 68, 0.25)" glowColor="rgba(239, 68, 68, 0.08)" delay={200} padding={16}>
             <Text style={[s.metricLabel, { color: colors.danger }]}>Critical Alerts</Text>
-            <Text style={s.metricVal}>{stats.critical}</Text>
+            <AnimatedCounter value={stats.critical} delay={450} duration={1000} style={[s.metricVal, { color: colors.danger }]} />
           </GlassCard>
         </View>
 
@@ -382,6 +402,60 @@ export default function AdminPortalScreen() {
               </GlassCard>
             </View>
 
+            <GlassCard borderColor="rgba(201,168,76,0.15)" glowColor="rgba(201,168,76,0.06)" padding={16} style={{ gap: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={s.graphTitle}>🧠 AI Insights</Text>
+                <Pressable
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setInsightsLoading(true);
+                    const result = await generateInsights(complaints);
+                    setAiInsights(result);
+                    setInsightsLoading(false);
+                  }}
+                  disabled={insightsLoading}
+                  style={{ backgroundColor: colors.gold, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                >
+                  {insightsLoading ? (
+                    <ActivityIndicator size="small" color={colors.navy} />
+                  ) : (
+                    <Text style={{ color: colors.navy, fontSize: 12, fontWeight: '700', fontFamily: 'Sora_700Bold' }}>
+                      {aiInsights ? 'Refresh' : 'Generate'}
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
+              {aiInsights ? (
+                <View style={{ gap: 10 }}>
+                  <Text style={{ color: colors.text, fontSize: 13, fontFamily: 'Sora_400Regular', lineHeight: 20 }}>
+                    {aiInsights.summary}
+                  </Text>
+                  {aiInsights.trends ? (
+                    <Text style={{ color: colors.gold, fontSize: 12, fontFamily: 'Sora_600SemiBold' }}>
+                      📈 {aiInsights.trends}
+                    </Text>
+                  ) : null}
+                  {aiInsights.recommendations.length > 0 && (
+                    <View style={{ gap: 6 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700', fontFamily: 'Sora_700Bold', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Recommendations
+                      </Text>
+                      {aiInsights.recommendations.map((rec, i) => (
+                        <View key={i} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                          <Text style={{ color: colors.blue, fontSize: 12 }}>→</Text>
+                          <Text style={{ color: colors.text, fontSize: 12, flex: 1, fontFamily: 'Sora_400Regular', lineHeight: 18 }}>{rec}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <Text style={{ color: colors.muted, fontSize: 12, fontFamily: 'Sora_400Regular', fontStyle: 'italic' }}>
+                  Tap "Generate" to get AI-powered insights and recommendations based on complaint data.
+                </Text>
+              )}
+            </GlassCard>
+
             <Text style={s.sectionTitle}>💬 Live Citizen Support Chats</Text>
             {selectedChatId ? (
               <GlassCard borderColor="rgba(255,255,255,0.08)" glowColor="rgba(61,142,240,0.04)" padding={16} style={{ gap: 12 }}>
@@ -451,6 +525,18 @@ export default function AdminPortalScreen() {
                     onSubmitEditing={handleSendAdminReply}
                     accessibilityLabel="Admin reply input"
                   />
+                  <Pressable
+                    onPress={handleAiSuggestReply}
+                    disabled={generatingReply}
+                    style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' }}
+                    accessibilityLabel="AI suggest reply"
+                  >
+                    {generatingReply ? (
+                      <ActivityIndicator size="small" color={colors.navy} />
+                    ) : (
+                      <Text style={{ fontSize: 14, color: colors.navy }}>🤖</Text>
+                    )}
+                  </Pressable>
                   <Pressable
                     onPress={handleSendAdminReply}
                     style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' }}

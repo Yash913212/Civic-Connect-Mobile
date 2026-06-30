@@ -10,7 +10,6 @@ import Animated, {
   withRepeat,
   Easing,
   runOnJS,
-  SharedValue,
 } from 'react-native-reanimated';
 
 import { useAppStore } from '../store';
@@ -96,16 +95,18 @@ export default function LaunchScreen() {
     opacity: logoOpacity.value,
   }));
 
-  const makeRingStyle = (scale: SharedValue<number>, opacity: SharedValue<number>) =>
-    useAnimatedStyle(() => ({
-      transform: [{ scale: scale.value }],
-      opacity: opacity.value,
-    }));
-
-
-  const ring1Style = makeRingStyle(ring1Scale, ring1Opacity);
-  const ring2Style = makeRingStyle(ring2Scale, ring2Opacity);
-  const ring3Style = makeRingStyle(ring3Scale, ring3Opacity);
+  const ring1Style = useAnimatedStyle(() => ({
+    transform: [{ scale: ring1Scale.value }],
+    opacity: ring1Opacity.value,
+  }));
+  const ring2Style = useAnimatedStyle(() => ({
+    transform: [{ scale: ring2Scale.value }],
+    opacity: ring2Opacity.value,
+  }));
+  const ring3Style = useAnimatedStyle(() => ({
+    transform: [{ scale: ring3Scale.value }],
+    opacity: ring3Opacity.value,
+  }));
 
   const titleStyle = useAnimatedStyle(() => ({
     opacity: titleOpacity.value,

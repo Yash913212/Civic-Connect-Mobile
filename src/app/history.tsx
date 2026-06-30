@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, FlatList, Pressable, ScrollView, RefreshControl } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { StyleSheet, View, Text, FlatList, Pressable, ScrollView, RefreshControl, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useAppStore } from '../store';
@@ -8,6 +8,7 @@ import { BackButton } from '../components/BackButton';
 import { ScreenLayout } from '../components/ScreenLayout';
 import { SkeletonCard } from '../components/Skeleton';
 import { colors } from '../theme/colors';
+import { t } from '../i18n';
 
 const statusColors: Record<string, string> = {
   pending: colors.amber,
@@ -17,26 +18,52 @@ const statusColors: Record<string, string> = {
 };
 
 const FILTERS = ['All', 'Pending', 'Assigned', 'In Progress', 'Resolved'];
+const FILTER_KEYS = ['filterAll', 'filterPending', 'filterAssigned', 'filterInProgress', 'filterResolved'] as const;
 
 export default function HistoryScreen() {
   const router = useRouter();
   const complaints = useAppStore((s) => s.complaints);
   const setCurrentComplaint = useAppStore((s) => s.setCurrentComplaint);
   const [filter, setFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const isFetching = useAppStore((s) => s.isFetching);
-  const filtered = filter === 'All' ? complaints : complaints.filter((c) => c.status.replace('_', ' ') === filter.toLowerCase());
+
+  const filtered = useMemo(() => {
+    let items = filter === 'All' ? complaints : complaints.filter((c) => c.status.replace('_', ' ') === filter.toLowerCase());
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      items = items.filter((c) =>
+        c.id.toLowerCase().includes(q) ||
+        c.category.toLowerCase().includes(q) ||
+        c.description.toLowerCase().includes(q) ||
+        c.department.toLowerCase().includes(q)
+      );
+    }
+    return items;
+  }, [complaints, filter, searchQuery]);
 
   return (
     <ScreenLayout>
       <View style={s.header}>
         <BackButton />
-        <Text style={s.title}>My Complaints</Text>
+        <Text style={s.title}>{t('history.title')}</Text>
         <View style={{ width: 40 }} />
+      </View>
+
+      <View style={s.searchWrap}>
+        <TextInput
+          style={s.searchInput}
+          placeholder={t('history.search')}
+          placeholderTextColor="rgba(255,255,255,0.25)"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          accessibilityLabel="Search complaints"
+        />
       </View>
 
       <View style={{ height: 48, marginBottom: 12 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
-          {FILTERS.map((f) => (
+          {FILTERS.map((f, i) => (
             <Pressable
               key={f}
               style={[s.chip, filter === f && { backgroundColor: colors.gold, borderColor: colors.gold }]}
@@ -47,7 +74,7 @@ export default function HistoryScreen() {
               accessibilityLabel={`Filter by ${f}`}
               accessibilityRole="button"
             >
-              <Text style={[s.chipText, filter === f && { color: colors.navy, fontFamily: 'Sora_700Bold' }]}>{f}</Text>
+              <Text style={[s.chipText, filter === f && { color: colors.navy, fontFamily: 'Sora_700Bold' }]}>{t(`history.${FILTER_KEYS[i]}`)}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -102,6 +129,13 @@ export default function HistoryScreen() {
               </GlassCard>
             </Pressable>
           )}
+          ListEmptyComponent={
+            <View style={s.emptyWrap}>
+              <Text style={s.emptyIcon}>📋</Text>
+              <Text style={s.emptyTitle}>{t('history.emptyTitle')}</Text>
+              <Text style={s.emptySub}>{t('history.emptySub')}</Text>
+            </View>
+          }
         />
       )}
     </ScreenLayout>
@@ -117,6 +151,18 @@ const s = StyleSheet.create({
     paddingVertical: 12,
   },
   title: { fontSize: 20, fontWeight: '800', color: colors.text, fontFamily: 'Sora_800ExtraBold', letterSpacing: -0.5 },
+  searchWrap: { paddingHorizontal: 20, paddingBottom: 8 },
+  searchInput: {
+    backgroundColor: 'rgba(13,27,46,0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 13,
+    color: colors.text,
+    fontFamily: 'Sora_400Regular',
+  },
   chip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -129,4 +175,8 @@ const s = StyleSheet.create({
   },
   chipText: { fontSize: 13, color: colors.muted, fontWeight: '600', fontFamily: 'Sora_600SemiBold' },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  emptyWrap: { alignItems: 'center', paddingTop: 60, gap: 10 },
+  emptyIcon: { fontSize: 48, marginBottom: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, fontFamily: 'Sora_700Bold' },
+  emptySub: { fontSize: 13, color: colors.muted, textAlign: 'center', paddingHorizontal: 40, lineHeight: 20, fontFamily: 'Sora_400Regular' },
 });

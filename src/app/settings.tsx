@@ -7,6 +7,7 @@ import { BackButton } from '../components/BackButton';
 import { ScreenLayout } from '../components/ScreenLayout';
 import { useAppStore } from '../store';
 import { colors } from '../theme/colors';
+import { t } from '../i18n';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -20,13 +21,13 @@ export default function SettingsScreen() {
     <ScreenLayout>
       <View style={s.header}>
         <BackButton />
-        <Text style={s.title}>Settings</Text>
+        <Text style={s.title}>{t('settings.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <View style={s.content}>
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Preferences</Text>
+          <Text style={s.sectionTitle}>{t('settings.preferences')}</Text>
           <GlassCard
             borderColor="rgba(255,255,255,0.08)"
             glowColor="rgba(201,168,76,0.02)"
@@ -34,7 +35,7 @@ export default function SettingsScreen() {
             padding={4}
           >
             <View style={s.row}>
-              <Text style={s.label}>Push Notifications</Text>
+              <Text style={s.label}>{t('settings.pushNotifications')}</Text>
               <Switch
                 value={pushEnabled}
                 onValueChange={setPushEnabled}
@@ -44,7 +45,7 @@ export default function SettingsScreen() {
               />
             </View>
             <View style={s.row}>
-              <Text style={[s.label, gpsPending && { opacity: 0.5 }]}>GPS Location Services</Text>
+              <Text style={[s.label, gpsPending && { opacity: 0.5 }]}>{t('settings.gpsServices')}</Text>
               <Switch
                 value={gpsEnabled}
                 disabled={gpsPending}
@@ -66,7 +67,7 @@ export default function SettingsScreen() {
               />
             </View>
             <View style={[s.row, { borderBottomWidth: 0 }]}>
-              <Text style={s.label}>Live Server Mode</Text>
+              <Text style={s.label}>{t('settings.liveServer')}</Text>
               <Switch
                 value={isLiveMode}
                 onValueChange={setLiveMode}
@@ -79,7 +80,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Account</Text>
+          <Text style={s.sectionTitle}>{t('settings.account')}</Text>
           <GlassCard
             borderColor="rgba(255,255,255,0.08)"
             glowColor="rgba(201,168,76,0.02)"
@@ -88,10 +89,11 @@ export default function SettingsScreen() {
           >
             <Pressable
               style={s.link}
+              onPress={() => router.push('/language-select')}
               accessibilityLabel="Change language"
               accessibilityRole="button"
             >
-              <Text style={s.linkLabel}>Change Language</Text>
+              <Text style={s.linkLabel}>{t('settings.changeLanguage')}</Text>
               <Text style={s.linkArrow}>→</Text>
             </Pressable>
             <Pressable

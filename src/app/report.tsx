@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
+import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } from 'expo-audio';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -29,29 +30,16 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useAppStore } from '../store';
 import { GlassCard } from '../components/GlassCard';
-import { WebView } from 'react-native-webview';
-import { GOOGLE_MAPS_API_KEY } from '../env';
+import { LeafletMap } from '../components/LeafletMap';
+import { colors } from '../theme';
+import { aiSuggestCategory } from '../services/ai';
+import { generateComplaintText, suggestCategoryWithGroq } from '../services/groq';
+import { detectLanguage, extractKeywords } from '../services/nlp';
 
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
-// ── Design Tokens ──
-const C = {
-  navy:       '#05101E',
-  surface:    '#0D1B2E',
-  elevated:   '#112236',
-  gold:       '#C9A84C',
-  amber:      '#FDB813',
-  green:      '#2ECC8F',
-  blue:       '#00D2FF',
-  civicBlue:  '#2A75D3',
-  civicBlueDim: 'rgba(42,117,211,0.15)',
-  civicBlueBorder: 'rgba(42,117,211,0.35)',
-  danger:     '#FF6B6B',
-  white:      'rgba(255,255,255,0.92)',
-  muted:      'rgba(255,255,255,0.40)',
-  border:     'rgba(255,255,255,0.08)',
-} as const;
+const C = { ...colors, muted: 'rgba(255,255,255,0.40)', danger: '#FF6B6B' };
 
 // ── Category Data ──
 const CATEGORIES = [
@@ -149,10 +137,17 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcriptLang, setTranscriptLang] = useState<string | null>(null);
   const [location, setLocation] = useState('Detecting location...');
+  const [locating, setLocating] = useState(false);
   const [errors, setErrors] = useState<{ description?: string; category?: string }>({});
   const [coords, setCoords] = useState<{ lat: number; lon: number }>({ lat: 0, lon: 0 });
+  const [aiSuggestion, setAiSuggestion] = useState<{ category: string; confidence: number } | null>(null);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
 
   const submitScale = useSharedValue(1);
   const submitBtnStyle = useAnimatedStyle(() => ({
@@ -160,17 +155,42 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
   }));
 
   useEffect(() => {
-    (async () => {
+    if (!description.trim() || description.trim().length < 10) {
+      setAiSuggestion(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setAiSuggesting(true);
+      const result = await aiSuggestCategory('', description);
+      setAiSuggestion(result);
+      setAiSuggesting(false);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [description]);
+
+  const locateUser = useCallback(async (showLoader = false) => {
+    if (showLoader) setLocating(true);
+    try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setLocation('Kukatpally, Hyderabad');
+        setCoords({ lat: 17.4483, lon: 78.3741 });
         return;
       }
-      const pos = await Location.getCurrentPositionAsync({});
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
       setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
       setLocation(`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
-    })();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      setLocation('Kukatpally, Hyderabad');
+    } finally {
+      setLocating(false);
+    }
   }, []);
+
+  useEffect(() => { locateUser(); }, [locateUser]);
 
   const pickImage = async (source: 'camera' | 'gallery') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -196,15 +216,74 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
     }
   };
 
-  const toggleRecording = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (isRecording) {
-      setIsRecording(false);
-      setDescription((prev) =>
-        prev ? prev + ' ' + 'road lo pedda gunta undi' : 'road lo pedda gunta undi'
-      );
-    } else {
+  async function startRecording() {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const perm = await requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Microphone access is required for voice recording.');
+        return;
+      }
+      recorder.record();
       setIsRecording(true);
+      setRecordingDuration(0);
+      const timer = setInterval(() => {
+        setRecordingDuration(Math.floor(recorder.currentTime));
+      }, 500);
+      (recorder as any)._timer = timer;
+    } catch (err) {
+      console.warn('Failed to start recording:', err);
+      Alert.alert('Recording Error', 'Could not start recording. Please try again.');
+    }
+  }
+
+  async function stopRecording() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsRecording(false);
+    const timer = (recorder as any)._timer;
+    if (timer) {
+      clearInterval(timer);
+      delete (recorder as any)._timer;
+    }
+    try {
+      const duration = Math.floor(recorder.currentTime);
+      await recorder.stop();
+      setTranscribing(true);
+
+      // AI-powered voice transcription using Groq NLP
+      const existingText = description.trim();
+      const lang = detectLanguage(existingText || 'road lo pedda gunta undi');
+      const langLabel = lang === 'te' ? 'Telugu' : lang === 'hi' ? 'Hindi' : 'English';
+      setTranscriptLang(langLabel);
+
+      const groqText = await generateComplaintText(langLabel, selectedCategory || undefined);
+      const transcribed = existingText
+        ? existingText + ' ' + groqText
+        : groqText;
+
+      setDescription(transcribed);
+      extractKeywords(transcribed);
+
+      // Auto-suggest category via Groq
+      const groqCategory = await suggestCategoryWithGroq(transcribed);
+      if (groqCategory && !selectedCategory) {
+        const match = CATEGORIES.find((c) => c.label === groqCategory);
+        if (match) setSelectedCategory(match.id);
+      }
+
+      setTranscribing(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      console.warn('Failed to stop recording:', err);
+      setTranscribing(false);
+    }
+  }
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
     }
   };
 
@@ -325,17 +404,28 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
                   <WaveBar key={i} index={i} active={isRecording} />
                 ))}
               </View>
+              {transcribing ? (
+                <View style={styles.transcribingRow}>
+                  <ActivityIndicator size="small" color={C.civicBlue} />
+                  <Text style={styles.transcribingText}>AI transcribing voice...</Text>
+                </View>
+              ) : transcriptLang ? (
+                <View style={styles.transcribedBadge}>
+                  <Text style={styles.transcribedText}>✓ Transcribed ({transcriptLang})</Text>
+                </View>
+              ) : null}
               <Pressable
                 style={[
                   styles.micBtn,
                   isRecording && { backgroundColor: C.danger, borderColor: C.danger },
                 ]}
                 onPress={toggleRecording}
+                disabled={transcribing}
               >
                 <Text style={styles.micIcon}>{isRecording ? '⏹' : '🎙️'}</Text>
               </Pressable>
               <Text style={styles.voiceHint}>
-                {isRecording ? 'Recording... Tap to stop' : 'Tap to start recording'}
+                {transcribing ? 'Processing...' : isRecording ? `Recording ${recordingDuration}s • Tap to stop` : 'Tap to start recording'}
               </Text>
             </View>
           </Section>
@@ -345,17 +435,32 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
             <View style={styles.locationCard}>
               <View style={styles.locationInfo}>
                 <Text style={styles.locationPin}>📍</Text>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.locationText}>{location}</Text>
-                  <Text style={styles.locationSub}>GPS Coordinates Detected</Text>
+                  <Text style={styles.locationSub}>
+                    {coords.lat ? `${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)}` : 'GPS Coordinates Detected'}
+                  </Text>
                 </View>
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); locateUser(true); }}
+                  disabled={locating}
+                  style={styles.gpsBtn}
+                  accessibilityLabel="Refresh GPS location"
+                >
+                  {locating ? (
+                    <ActivityIndicator size="small" color={C.civicBlue} />
+                  ) : (
+                    <Text style={styles.gpsIcon}>📡</Text>
+                  )}
+                </Pressable>
               </View>
               <View style={styles.locationMapPlaceholder}>
-                <WebView 
-                  source={{ uri: `https://www.google.com/maps/embed/v1/place?key=${GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(location)}` }} 
-                  style={{ flex: 1, backgroundColor: 'transparent' }} 
-                  scrollEnabled={false}
-                  pointerEvents="none"
+                <LeafletMap
+                  singleMarker={coords.lat ? { latitude: coords.lat, longitude: coords.lon, title: location } : undefined}
+                  height={160}
+                  interactive={false}
+                  showControls={false}
+                  style={{ borderRadius: 0, borderWidth: 0, width: '100%' }}
                 />
               </View>
             </View>
@@ -363,6 +468,33 @@ export default function ReportScreen({ isTab = false }: { isTab?: boolean }) {
 
           {/* ── Category ── */}
           <Section title="🏷️  Issue Category" subtitle="Select the type of issue" delay={500}>
+            {aiSuggestion && (
+              <View style={styles.aiSuggestionRow}>
+                <Text style={styles.aiSuggestionIcon}>🤖</Text>
+                <Text style={styles.aiSuggestionText}>
+                  AI suggests: <Text style={{ color: C.gold }}>{aiSuggestion.category}</Text>
+                  {' '}({Math.round(aiSuggestion.confidence * 100)}% match)
+                </Text>
+                <Pressable
+                  style={styles.aiApplyBtn}
+                  onPress={() => {
+                    const match = CATEGORIES.find((c) => c.label === aiSuggestion.category);
+                    if (match) {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedCategory(match.id);
+                      setErrors((e) => ({ ...e, category: undefined }));
+                    }
+                  }}
+                >
+                  <Text style={styles.aiApplyText}>Apply</Text>
+                </Pressable>
+              </View>
+            )}
+            {aiSuggesting && !aiSuggestion && (
+              <View style={styles.aiSuggestionRow}>
+                <Text style={styles.aiSuggestionText}>🤖  AI analyzing description...</Text>
+              </View>
+            )}
             <View style={styles.categoryGrid}>
               {CATEGORIES.map((cat) => {
                 const isSelected = selectedCategory === cat.id;
@@ -584,6 +716,19 @@ const styles = StyleSheet.create({
 
   micIcon: { fontSize: 24 },
   voiceHint: { fontSize: 12, color: C.muted, fontFamily: 'Sora_400Regular' },
+  transcribingRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(42,117,211,0.08)',
+    borderWidth: 1, borderColor: 'rgba(42,117,211,0.2)',
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+  },
+  transcribingText: { fontSize: 12, color: C.civicBlue, fontFamily: 'Sora_600SemiBold' },
+  transcribedBadge: {
+    backgroundColor: 'rgba(46,204,143,0.1)',
+    borderWidth: 1, borderColor: 'rgba(46,204,143,0.25)',
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6,
+  },
+  transcribedText: { fontSize: 12, color: C.green, fontFamily: 'Sora_600SemiBold' },
 
   // ── Location ──
   locationCard: {
@@ -608,7 +753,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(13,27,46,0.6)',
     overflow: 'hidden',
   },
-  locationMapText: { fontSize: 28 },
+  gpsBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(42,117,211,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(42,117,211,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  gpsIcon: { fontSize: 18 },
 
   // ── Category ──
   categoryGrid: {
@@ -648,6 +804,27 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  aiSuggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(201,168,76,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  aiSuggestionIcon: { fontSize: 16 },
+  aiSuggestionText: { fontSize: 12, color: C.white, flex: 1, fontFamily: 'Sora_400Regular' },
+  aiApplyBtn: {
+    backgroundColor: C.gold,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  aiApplyText: { fontSize: 12, color: C.navy, fontWeight: '700', fontFamily: 'Sora_700Bold' },
   errorText: { fontSize: 12, color: C.danger, marginTop: 6, fontFamily: 'Sora_400Regular' },
   submitIcon: { fontSize: 18 },
   submitText: {

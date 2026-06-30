@@ -13,6 +13,7 @@ import { GlassCard } from '../components/GlassCard';
 import { BackButton } from '../components/BackButton';
 import { ScreenLayout } from '../components/ScreenLayout';
 import { colors } from '../theme/colors';
+import { t } from '../i18n';
 
 export default function ChatScreen() {
   const chatMessages = useAppStore((s) => s.chatMessages);
@@ -60,7 +61,13 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         >
-          {chatMessages.map((msg, idx) => {
+          {chatMessages.length === 0 ? (
+            <View style={s.emptyWrap}>
+              <Text style={s.emptyIcon}>🤖</Text>
+              <Text style={s.emptyTitle}>{t('chat.emptyTitle')}</Text>
+              <Text style={s.emptySub}>{t('chat.emptySub')}</Text>
+            </View>
+          ) : chatMessages.map((msg, idx) => {
             const isUser = msg.sender === 'user';
             return (
               <Animated.View
@@ -124,7 +131,7 @@ export default function ChatScreen() {
               s.input,
               isFocused && { borderColor: 'rgba(201,168,76,0.25)', backgroundColor: 'rgba(201,168,76,0.04)' },
             ]}
-            placeholder="Ask anything about municipal services..."
+            placeholder={t('chat.placeholder')}
             placeholderTextColor={colors.muted}
             value={text}
             onChangeText={setText}
@@ -196,6 +203,10 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Sora_400Regular',
   },
+  emptyWrap: { alignItems: 'center', paddingTop: 80, gap: 10 },
+  emptyIcon: { fontSize: 56 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: colors.text, fontFamily: 'Sora_700Bold' },
+  emptySub: { fontSize: 13, color: colors.muted, textAlign: 'center', paddingHorizontal: 40, lineHeight: 20, fontFamily: 'Sora_400Regular' },
   sendBtn: {
     width: 46,
     height: 46,

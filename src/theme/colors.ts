@@ -1,6 +1,6 @@
 export const colors = {
   background: '#050816',
-  surface: '#0A0F1C',
+  surface: '#0D1B2E',
   cards: '#101827',
   navy: '#05101E',
   elevated: '#112236',
@@ -10,19 +10,27 @@ export const colors = {
   success: '#10B981',
   warning: '#F59E0B',
   danger: '#EF4444',
+  dangerBright: '#FF6B6B',
   text: '#FFFFFF',
   muted: '#94A3B8',
   gold: '#C9A84C',
   goldDim: 'rgba(201,168,76,0.12)',
   goldBorder: 'rgba(201,168,76,0.25)',
-  amber: '#F5A623',
+  amber: '#FDB813',
   green: '#2ECC8F',
-  blue: '#3D8EF0',
+  blue: '#00D2FF',
+  civicBlue: '#2A75D3',
+  civicBlueDim: 'rgba(42,117,211,0.15)',
+  civicBlueBorder: 'rgba(42,117,211,0.35)',
 
   // Glassmorphic Theme System
   glassBg: 'rgba(13, 27, 46, 0.45)',
   glassBorder: 'rgba(255, 255, 255, 0.12)',
   glassBorderActive: 'rgba(201, 168, 76, 0.35)',
   glassInputBg: 'rgba(17, 34, 54, 0.4)',
-};
 
+  // Common aliases (used by screens)
+  white: 'rgba(255,255,255,0.92)',
+  textMuted: 'rgba(255,255,255,0.40)',
+  border: 'rgba(255,255,255,0.06)',
+};
